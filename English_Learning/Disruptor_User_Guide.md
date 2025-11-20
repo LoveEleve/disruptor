@@ -2,11 +2,9 @@
 
 
 The LMAX Disruptor is a high performance inter-thread messaging library.
-=
 It grew out of LMAX’s research into concurrency, performance and non-blocking algorithms
-=
 and today forms a core part of their Exchange’s infrastructure.
-=
+
 
 inter-thread ：线程之间 / 线程间
 messaging ：传递消息
@@ -45,8 +43,7 @@ However, there are some key features that the Disruptor provides that distinguis
 =
 They are:
 =
-test token
-hello
+o
 
 
 
