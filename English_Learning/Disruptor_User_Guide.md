@@ -23,11 +23,11 @@ Exchange’s infrastructure ： 交易所的基础设施
 ### Introduction
 
 The Disruptor is a library that provides a concurrent ring buffer data structure.
-=
+>
 that:定语从句,用于修饰 library 的功能
 
 It is designed to provide a low-latency, high-throughput work queue in asynchronous event processing architectures.
-=
+
 主干 ：It is designed to provide a work queue:  它被设计来提供一个工作队列
 修饰部分：low-latency, high-throughput 低延迟，高吞吐
 修饰部分：in asynchronous event processing architectures 在异步事件处理框架中
