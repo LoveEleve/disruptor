@@ -21,6 +21,16 @@ package com.lmax.disruptor;
  * add/remove of Sequences from a
  * {@link SequenceGroups#addSequences(Object, java.util.concurrent.atomic.AtomicReferenceFieldUpdater, Cursored, Sequence...)}.
  */
+
+/**
+ * 提供序号查询能力,其唯一职责就是：让外部能够查询当前组件的序号位置
+ * 抽象 - “位置”的概念,在disruptor中,不同的组件都有"当前位置"的概念,比如:
+ *  - 生产者：当前已经发布到了哪个序列号
+ *  - 消费者：当前已经处理到了哪个序列号
+ *  - RingBuffer:当前最新的序号是多少
+ * 而Cursored接口则统一了这个概念(翻译为“光标”)
+ *
+ */
 public interface Cursored
 {
     /**

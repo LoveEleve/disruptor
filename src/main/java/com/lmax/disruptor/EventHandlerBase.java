@@ -15,6 +15,11 @@
  */
 package com.lmax.disruptor;
 
+/**
+ * 函数式接口,但是从定义看不止一个，因为只有一个onEvent()是必须实现的，其他的都是可选的
+ *
+ * @param <T>
+ */
 @FunctionalInterface
 interface EventHandlerBase<T> extends EventHandlerIdentity
 {
@@ -25,19 +30,23 @@ interface EventHandlerBase<T> extends EventHandlerIdentity
      * to do slower operations like I/O as they can group together the data from multiple events into a single
      * operation.  Implementations should ensure that the operation is always performed when endOfBatch is true as
      * the time between that message and the next one is indeterminate.
+     * <p>
+     * event:从RingBuffer发布的事件对象
+     * sequence:事件序列号(在序列号中的位置)
+     * endOfBatch:是否是批处理的最后一个事件
      *
      * @param event      published to the {@link RingBuffer}
      * @param sequence   of the event being processed
      * @param endOfBatch flag to indicate if this is the last event in a batch from the {@link RingBuffer}
      * @throws Throwable if the EventHandler would like the exception handled further up the chain or possible rewind
-     * the batch if a {@link RewindableException} is thrown.
+     *                   the batch if a {@link RewindableException} is thrown.
      */
     void onEvent(T event, long sequence, boolean endOfBatch) throws Throwable;
 
     /**
      * Invoked by {@link BatchEventProcessor} prior to processing a batch of events
      *
-     * @param batchSize the size of the batch that is starting
+     * @param batchSize  the size of the batch that is starting
      * @param queueDepth the total number of queued up events including the batch about to be processed
      */
     default void onBatchStart(long batchSize, long queueDepth)

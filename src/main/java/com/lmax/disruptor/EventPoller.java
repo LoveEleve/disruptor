@@ -8,12 +8,20 @@ package com.lmax.disruptor;
  *
  * @param <T> the type of event used.
  */
+
+/**
+ * 类比：现实世界的“自助餐厅的取餐模式”，而不是“服务员的取餐模式”
+ * 在这里对比的是：传统的EventProcessor
+ * EventPoller 允许用户完全控制事件消费的节奏和时机,而不是由Disruptor框架控制线程的生命周期
+ *
+ * @param <T>
+ */
 public class EventPoller<T>
 {
-    private final DataProvider<T> dataProvider;
-    private final Sequencer sequencer;
-    private final Sequence sequence;
-    private final Sequence gatingSequence;
+    private final DataProvider<T> dataProvider; // 数据提供者，通常RingBuffer
+    private final Sequencer sequencer; // 序列器,控制事件顺序
+    private final Sequence sequence; // 当前Poller 的消费序列
+    private final Sequence gatingSequence; // 门控序列，用于协调多消费者
 
     /**
      * A callback used to process events

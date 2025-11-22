@@ -4,6 +4,13 @@ package com.lmax.disruptor;
  * Operations related to the sequencing of items in a {@link RingBuffer}.
  * See the two child interfaces, {@link Sequencer} and {@link EventSequencer} for more details.
  */
+
+/**
+ * 这个接口是disruptor中最基础的序号管理接口,定义了序号申请,发布和容量查询的核心操作
+ * 1.序号申请:阻塞/非阻塞
+ * 2.序号发布
+ * 3.容量查询(容量控制机制)
+ */
 public interface Sequenced
 {
     /**
@@ -24,6 +31,7 @@ public interface Sequenced
 
     /**
      * Get the remaining capacity for this sequencer.
+     * remaining：剩余的
      *
      * @return The number of slots remaining.
      */
@@ -31,6 +39,8 @@ public interface Sequenced
 
     /**
      * Claim the next event in sequence for publishing.
+     *  - in sequence：按顺序
+     *  - claim：认领(领取)
      *
      * @return the claimed sequence value
      */

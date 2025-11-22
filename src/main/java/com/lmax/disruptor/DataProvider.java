@@ -17,6 +17,7 @@ package com.lmax.disruptor;
 
 /**
  * Typically used to decouple classes from {@link RingBuffer} to allow easier testing
+ * 数据提供者，抽象化，虽然通常是RingBuffer实现(但是不一定)
  *
  * @param <T> The type provided by the implementation
  */

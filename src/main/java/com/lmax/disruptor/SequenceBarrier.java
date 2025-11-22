@@ -20,6 +20,16 @@ package com.lmax.disruptor;
  * Coordination barrier for tracking the cursor for publishers and sequence of
  * dependent {@link EventProcessor}s for processing a data structure
  */
+
+/**
+ * 这个接口是消费者端的核心协调组件,其作用是：控制消费者何时可以消费事件，以及如何等待新事件的到达
+ * 相当于餐厅的“叫号器”，当前的叫号显示屏上显示的是42，那么顾客(消费者)看到自己手里的号是<42的，那么就代表可以去取餐了
+ * 反之,则不能,需要继续等待
+ * 核心职责：
+ *  - 1.告诉消费者,生产者已经发布到哪个序列号了
+ *  - 2.如果事件没有装备好，消费者应该如何等待
+ *  - 3.确保消费者能够按照正确的顺序处理事件
+ */
 public interface SequenceBarrier
 {
     /**
@@ -48,6 +58,8 @@ public interface SequenceBarrier
     boolean isAlerted();
 
     /**
+     * alert() / clearAlert() / checkAlert() - 警报机制
+     * 用于优雅的关闭消费者，避免消费者永久的阻塞在waitFor()方法中
      * Alert the {@link EventProcessor}s of a status change and stay in this status until cleared.
      */
     void alert();
