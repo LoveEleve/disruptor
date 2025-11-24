@@ -97,7 +97,7 @@ public class Disruptor<T>
             final WaitStrategy waitStrategy)
     {
         this(
-            RingBuffer.create(producerType, eventFactory, ringBufferSize, waitStrategy),
+            RingBuffer.create(producerType, eventFactory, ringBufferSize, waitStrategy), // 首先创建一个RingBuffer
             threadFactory);
     }
 
@@ -504,27 +504,39 @@ public class Disruptor<T>
     }
 
     EventHandlerGroup<T> createEventProcessors(
-            final Sequence[] barrierSequences,
-            final EventHandler<? super T>[] eventHandlers)
+            final Sequence[] barrierSequences, // 当前消费者所依赖的上游消费者序列(可能没有)
+            final EventHandler<? super T>[] eventHandlers) // 用户提供的事件处理器数组
     {
-        checkNotStarted();
+        checkNotStarted(); // 确保Disruptor还没有启动
 
+        /*
+            创建序列数组,为每个EventHandle创建对应的Sequence存储空间(用来存储每一个handler的sequence)
+        */
         final Sequence[] processorSequences = new Sequence[eventHandlers.length];
+         /*
+            创建消费者序列屏障,这个是共享的(共享指的是同一批通过handleEventsWith()注册的消费者{eventHandlers会共享一个SequenceBarrier})
+        */
         final SequenceBarrier barrier = ringBuffer.newBarrier(barrierSequences);
 
+        /*
+            循环创建BatchEventProcessor(也就是消费者)
+
+        */
         for (int i = 0, eventHandlersLength = eventHandlers.length; i < eventHandlersLength; i++)
         {
+            // 5.1 获取到用户提供的事件处理器(handler)
             final EventHandler<? super T> eventHandler = eventHandlers[i];
-
+            // 5.2 构建BatchEventProcessor(消费者)
             final BatchEventProcessor<T> batchEventProcessor =
                     new BatchEventProcessorBuilder().build(ringBuffer, barrier, eventHandler);
-
+            // 5.3 设置异常处理器(如果有的话)
             if (exceptionHandler != null)
             {
                 batchEventProcessor.setExceptionHandler(exceptionHandler);
             }
-
+            // 5.4 将BatchEventProcessor(消费者)添加到消费者仓库中
             consumerRepository.add(batchEventProcessor, eventHandler, barrier);
+            // 5.5 将BatchEventProcessor(消费者)的Sequence添加到processorSequences数组中
             processorSequences[i] = batchEventProcessor.getSequence();
         }
 
@@ -564,11 +576,29 @@ public class Disruptor<T>
         return new EventHandlerGroup<>(this, consumerRepository, processorSequences);
     }
 
+    /*
+        该方法负责更新ringBuffer的gatingSequences
+         processorSequences：所有消费者的Sequence数组
+         barrierSequences:消费者所依赖的上游消费者的Sequence数组
+     */
     private void updateGatingSequencesForNextInChain(final Sequence[] barrierSequences, final Sequence[] processorSequences)
     {
+        // 保证至少创建了一个新的消费者
         if (processorSequences.length > 0)
         {
+            // 将新创建的所有消费者的Sequence添加到ringBuffer的gatingSequences中 - 这些新消费者现在成为了生产者需要等待的gating
             ringBuffer.addGatingSequences(processorSequences);
+            /*
+                移除上游消费者的序列,遍历barrierSequences数组,将它们从ringBuffer的gatingSequences中移除
+                逻辑优化:
+                假设生产者的gating Sequences[]为[handle-1.sequence, handle-2.sequence, handle-3.sequence]
+                 - 生产者在发布新事件时,必须确保所有消费者都处理完了该槽位的旧数据,在这里需要获取 minSeq = min(h1.seq, h2.seq, h3.seq)
+                   - 如果 currentSeq(生产者当前想要发布的位置) > minSeq, 那么说明还有消费者没有消费到该currentSeq数据
+                   - 此时消费者应该阻塞
+                而同时handle-3.sequence依赖于handle-1.sequence和handle-2.sequence,
+
+
+             */
             for (final Sequence barrierSequence : barrierSequences)
             {
                 ringBuffer.removeGatingSequence(barrierSequence);

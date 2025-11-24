@@ -53,6 +53,7 @@ public final class BatchEventProcessorBuilder
         final BatchEventProcessor<T> processor = new BatchEventProcessor<>(
                 dataProvider, sequenceBarrier, eventHandler, maxBatchSize, null
         );
+        // hook sequence callback, 在创建完 BatchEventProcessor 后，就调用 callback
         eventHandler.setSequenceCallback(processor.getSequence());
 
         return processor;

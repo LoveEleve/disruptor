@@ -30,19 +30,30 @@ import static java.lang.Math.min;
 public final class BatchEventProcessor<T>
         implements EventProcessor
 {
+    /*
+     * 状态常量,定义处理器的三种生命状态
+     *  - IDLE: 空闲状态, 处理器未运行
+     *  - HALTED: 已停止状态, 处理器被主动停止
+     *  - RUNNING: 运行状态, 处理器正在运行
+     */
     private static final int IDLE = 0;
     private static final int HALTED = IDLE + 1;
     private static final int RUNNING = HALTED + 1;
 
-    private final AtomicInteger running = new AtomicInteger(IDLE);
-    private ExceptionHandler<? super T> exceptionHandler;
-    private final DataProvider<T> dataProvider;
-    private final SequenceBarrier sequenceBarrier;
-    private final EventHandlerBase<? super T> eventHandler;
-    private final int batchLimitOffset;
+    private final AtomicInteger running = new AtomicInteger(IDLE); // 初始值为IDLE
+    private ExceptionHandler<? super T> exceptionHandler; // 事件处理过程中发生的异常由该异常处理器处理
+    private final DataProvider<T> dataProvider; // 通常是ringBuffer,需要通过该dataProvider获取(然后才是处理事件)
+    private final SequenceBarrier sequenceBarrier; // 协调消费者与生产者(上游消费者)之间的同步关系
+    private final EventHandlerBase<? super T> eventHandler; // 用户提供事件处理器
+    private final int batchLimitOffset; // 限制单批次处理的最大事件数量
+    /*
+        记录当前消费者已处理的最大序号
+        同时作为生产者的gating sequence，防止覆盖未处理的事件
+        协调依赖:下游消费者可以通过此序列来判断是否可以处理
+    */
     private final Sequence sequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-    private final RewindHandler rewindHandler;
-    private int retriesAttempted = 0;
+    private final RewindHandler rewindHandler; // 处理可重试异常的回退逻辑,用来支持事件处理失败后的重试
+    private int retriesAttempted = 0; // 记录当前事件的重试次数
 
     BatchEventProcessor(
             final DataProvider<T> dataProvider,

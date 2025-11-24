@@ -24,6 +24,11 @@ package com.lmax.disruptor;
  *
  * @param <T> event implementation storing the data for sharing during exchange or parallel coordination of an event.
  */
+
+/**
+ * 事件转换器：用于将数据"翻译"到预分配的事件对象中
+ * @param <T>
+ */
 public interface EventTranslator<T>
 {
     /**

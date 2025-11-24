@@ -4,6 +4,13 @@ package com.lmax.disruptor;
  * Write interface for {@link RingBuffer}.
  * @param <E> The event type
  */
+
+/**
+ * 当前接口定义了生产者向环形缓存区发布事件的所有方法
+ * 这个接口下的方法是发布事件(生产者生产)的入口,
+ * 而生产数据通常包含多个步骤：其中真正put数据的步骤则是由EventTranslator来完成的
+ * @param <E>
+ */
 public interface EventSink<E>
 {
     /**

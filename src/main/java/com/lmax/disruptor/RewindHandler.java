@@ -16,7 +16,17 @@
 
 package com.lmax.disruptor;
 
+/**
+ * 该接口是专门负责处理RewindableException异常的,并且决定了如何进行批次重试
+ */
 public interface RewindHandler
 {
+    /**
+     *
+     * @param e 触发重试的异常对象
+     * @param startOfBatchSequence 当前批次的起始序号
+     * @return 返回下一个要处理的序列号，也即决定重试的起始位置
+     * @throws RewindableException
+     */
     long attemptRewindGetNextSequence(RewindableException e, long startOfBatchSequence) throws RewindableException;
 }

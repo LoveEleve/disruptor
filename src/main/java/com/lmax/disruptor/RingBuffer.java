@@ -162,6 +162,7 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
         final int bufferSize,
         final WaitStrategy waitStrategy)
     {
+        // 创建生产者(从这里可以看到,Sequencer其实就是充当了生产者的角色)
         SingleProducerSequencer sequencer = new SingleProducerSequencer(bufferSize, waitStrategy);
 
         return new RingBuffer<>(factory, sequencer);
@@ -199,7 +200,7 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
         final int bufferSize,
         final WaitStrategy waitStrategy)
     {
-        switch (producerType)
+        switch (producerType) // disruptor默认支持单生产者和多生产者两种模式
         {
             case SINGLE:
                 return createSingleProducer(factory, bufferSize, waitStrategy);

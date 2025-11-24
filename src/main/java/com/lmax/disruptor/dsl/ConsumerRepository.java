@@ -28,7 +28,16 @@ import java.util.Map;
 import java.util.concurrent.ThreadFactory;
 
 /**
- * Provides a repository mechanism to associate {@link EventHandler}s with {@link EventProcessor}s
+ * Provides a repository mechanism to associate {@link EventHandler}s with {@link EventProcessor}
+ * 翻译：提供一个仓库机制来关联EventHandle和EventProcessor
+ * 核心作用:
+ * 1. 消费者生命周期管理
+ *  1.1 注册和存储所有消费者（EventProcessor）
+ *  1.2 消费者生命周期管理（启动、停止、重启）
+ * 2. 消费者信息索引 - 维护来三种索引结构,方便快速查找
+ *  2.1 eventProcessorInfoByEventHandler : 通过EventHandler来查找消费者信息
+ *  2.2 eventProcessorInfoBySequence : 通过Sequence来查找消费者信息
+ *  2.3 consumerInfos : 所有消费者信息
  */
 class ConsumerRepository
 {
@@ -43,9 +52,13 @@ class ConsumerRepository
         final EventHandlerIdentity handlerIdentity,
         final SequenceBarrier barrier)
     {
+        // 包装对象:将EventProcessor和SequenceBarrier关联在一起,形成完整的消费者信息,后续可以通过这个对象获取消费者的所有信息
         final EventProcessorInfo consumerInfo = new EventProcessorInfo(eventprocessor, barrier);
+        // build first index : EventHandler -> EventProcessorInfo ?? 使用场景是什么？
         eventProcessorInfoByEventHandler.put(handlerIdentity, consumerInfo);
+        // build second index : Sequence -> EventProcessorInfo ?? 使用场景是什么？
         eventProcessorInfoBySequence.put(eventprocessor.getSequence(), consumerInfo);
+        // build third index : all consumerInfos
         consumerInfos.add(consumerInfo);
     }
 

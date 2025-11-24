@@ -23,11 +23,19 @@ package com.lmax.disruptor;
  *
  * <p>An EventProcessor will generally be associated with a Thread for execution.
  */
+
+/**
+ * EventProcessor本质上一个可在独立线程中运行的一个任务.
+ * 一个EventProcessor通常和一个线程绑定
+ * 其核心特点为：从RingBuffer中轮询事件
+ */
 public interface EventProcessor extends Runnable
 {
     /**
      * Get a reference to the {@link Sequence} being used by this {@link EventProcessor}.
-     *
+     * 返回当前EventProcessor使用的Sequence对象
+     * Sequence用来表示处理器当前消费到的位置,
+     * 因为生产者需要知道最慢的消费者位置
      * @return reference to the {@link Sequence} for this {@link EventProcessor}
      */
     Sequence getSequence();
@@ -36,11 +44,13 @@ public interface EventProcessor extends Runnable
      * Signal that this EventProcessor should stop when it has finished consuming at the next clean break.
      * It will call {@link SequenceBarrier#alert()} to notify the thread to check status.
      */
+    // 通知EventProcessor停止运行
     void halt();
 
     /**
      * @return whether this event processor is running or not
      * Implementations should ideally return false only when the associated thread is idle.
      */
+    // 返回EventProcessor是否正在运行
     boolean isRunning();
 }

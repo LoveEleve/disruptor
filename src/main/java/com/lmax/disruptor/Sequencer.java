@@ -17,6 +17,7 @@ package com.lmax.disruptor;
 
 /**
  * Coordinates claiming sequences for access to a data structure while tracking dependent {@link Sequence}s
+ * 该组件可以被认为是充当了生产者的角色
  */
 
 /**

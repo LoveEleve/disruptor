@@ -22,6 +22,12 @@ package com.lmax.disruptor;
  * @param <T> event implementation storing the data for sharing during exchange or parallel coordination of an event.
  * @see BatchEventProcessor#setExceptionHandler(ExceptionHandler) if you want to handle exceptions propagated out of the handler.
  */
+
+/**
+ * 该接口扩展了EventHandleBase接口
+ * 主要的功能是支持事件处理失败时的重试机制
+ * @param <T>
+ */
 public interface RewindableEventHandler<T> extends EventHandlerBase<T>
 {
     /**

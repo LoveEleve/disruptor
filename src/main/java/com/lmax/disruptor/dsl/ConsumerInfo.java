@@ -5,6 +5,9 @@ import com.lmax.disruptor.SequenceBarrier;
 
 import java.util.concurrent.ThreadFactory;
 
+/**
+ * 消费者管理器
+ */
 interface ConsumerInfo
 {
     Sequence[] getSequences();
