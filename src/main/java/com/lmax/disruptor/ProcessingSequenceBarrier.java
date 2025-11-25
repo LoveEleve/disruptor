@@ -35,7 +35,7 @@ final class ProcessingSequenceBarrier implements SequenceBarrier
     /*
     * 依赖序列的引用,表示当前消费者依赖的上游序列,当前消费者必须等待这个序列推进后才能消费,有两种场景：
     *  - 无依赖场景：指向生产者的cursor
-    *  - 有依赖场景: 指向上游消费者的Sequence(消费者链)
+    *  - 有依赖场景: 指向上游消费者的Sequence(消费者链) - FixedSequenceGroup(),内部维护一个数组对象,用于存储依赖序列
     */
     private final Sequence dependentSequence;
     // 用于优雅的关闭消费者
@@ -78,13 +78,24 @@ final class ProcessingSequenceBarrier implements SequenceBarrier
             dependentSequence = new FixedSequenceGroup(dependentSequences);
         }
     }
-
+    /*
+        对于消费者来说：sequence代表的消费者此次消费的起始序列号
+        对于生产者来说：xxx
+    */
     @Override
     public long waitFor(final long sequence)
         throws AlertException, InterruptedException, TimeoutException
     {
         checkAlert();
+        /*
+            继续委托给具体的等待策略对象来处理
+                - sequence: 消费者此次消费的起始序列号
+                - cursorSequence: 指向生产者的Sequence,可以获取生产者对应的序列号信息(生产者已经发布的最新序号)
+                - dependentSequence: 依赖序列的引用,表示当前消费者依赖的上游序列,当前消费者必须等待这个序列推进后才能消费
+                - this: 当前消费者的SequenceBarrier对象
+                在这里以BlockingWaitStrategy为例
 
+        */
         long availableSequence = waitStrategy.waitFor(sequence, cursorSequence, dependentSequence, this);
 
         if (availableSequence < sequence)

@@ -123,6 +123,14 @@ public class Disruptor<T>
      * @param handlers the event handlers that will process events.
      * @return a {@link EventHandlerGroup} that can be used to chain dependencies.
      */
+    /*
+       在这里最终会返回一个EventHandlerGroup对象
+       作用：
+        1.支持链式调用,disruptor.handleEventsWith(A).then(B).then(C)...
+        2.封装依赖关系信息(disruptor,consumerRepository,sequences[]{消费者序列号数组})
+        3.作为依赖屏障的标识,当调用handleEventsWith()/then()时,EventHandlerGroup中的sequences[]会作为barrierSequences参数传递给下一批消费者
+          - 换句话说,也就是作为下一批消费者的上游依赖
+    */
     @SuppressWarnings("varargs")
     @SafeVarargs
     public final EventHandlerGroup<T> handleEventsWith(final EventHandler<? super T>... handlers)
@@ -357,7 +365,8 @@ public class Disruptor<T>
      */
     public RingBuffer<T> start()
     {
-        checkOnlyStartedOnce();
+        checkOnlyStartedOnce(); // 确保disruptor只能启动一次
+        // 这里调用的是消费者仓库的startAll()方法，因为该仓库中保存了所有消费者的信息
         consumerRepository.startAll(threadFactory);
 
         return ringBuffer;
@@ -595,14 +604,28 @@ public class Disruptor<T>
                  - 生产者在发布新事件时,必须确保所有消费者都处理完了该槽位的旧数据,在这里需要获取 minSeq = min(h1.seq, h2.seq, h3.seq)
                    - 如果 currentSeq(生产者当前想要发布的位置) > minSeq, 那么说明还有消费者没有消费到该currentSeq数据
                    - 此时消费者应该阻塞
-                而同时handle-3.sequence依赖于handle-1.sequence和handle-2.sequence,
+                而同时handle-3.sequence依赖于handle-1.sequence和handle-2.sequence,(也即barrierSequences[])
 
+                在这种情况下,如果没有优化,那么在计算min(h1.seq, h2.seq, h3.seq),也即需要从3个seq中找到最小的,
+                但是其实当消费者之间也存在依赖关系时，比如上面的h3.sequence依赖于h1.sequence和h2.sequence,
+                那么其实生产者要等待的最小seq,就是h3.seq(因为h3.seq需要等待h2.seq,h2.seq需要等待h1.seq)
+
+                *************************
+                这里还需要注意一个点：当h3.seq依赖于h2.seq时,为什么h3.seq <= h2.seq(这里为什么是<=呢？)
+                因为seqence序列号代表的是每个组件已经处理完成的位置,
+                对于消费者来说：它代表该消费者已经处理完成的最大序列号,
+                当存在等待关系时,比如h3依赖h2，意味着h3在处理某个事件之前,必须确保h2已经处理了该事件
+                [这里有个核心概念：依赖通常指的是不同消费者对于同一个事件的处理顺序]
+                *************************
+
+                所以在这里,会remove掉h1.seq和h2.seq,只保留处理链末端的消费者序列
 
              */
             for (final Sequence barrierSequence : barrierSequences)
             {
                 ringBuffer.removeGatingSequence(barrierSequence);
             }
+            // 并且标记h1和h2不再是处理器末端(这里的barrierSequences是依赖的上游消费者的Sequence数组)
             consumerRepository.unMarkEventProcessorsAsEndOfChain(barrierSequences);
         }
     }

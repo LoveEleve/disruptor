@@ -52,10 +52,34 @@ public final class MultiProducerSequencer extends AbstractSequencer
     public MultiProducerSequencer(final int bufferSize, final WaitStrategy waitStrategy)
     {
         super(bufferSize, waitStrategy);
+        /*
+            多生产者需要一个availableBuffer数组，这个数组的作用是什么
+            这个是多生产者中的核心数据结构,用来避免发布乱序
+            时间 T1: 生产者 P1 获取序列号 10
+            时间 T2: 生产者 P2 获取序列号 11
+            时间 T3: P2 先完成，发布序列号 11  ✓
+            时间 T4: P1 还在处理，序列号 10 未发布  ✗
+            此时 cursor = 11，但位置 10 的数据还未就绪！
+            消费者不能直接读取位置 10 和 11，必须等待 P1 发布。
+
+            ---
+
+            而这个availableBuffer[]就是解决方案，它为ringBuffer的每一个位置维护了一个发布标记,
+            当生产者发布数据时,需要设置对应位置的标记
+            消费者读取前,检查标记
+            初始值为-1
+        */
         availableBuffer = new int[bufferSize];
         Arrays.fill(availableBuffer, -1);
-
+        // 用于快速计算序列号在ringBuffer中的实际位置
         indexMask = bufferSize - 1;
+        /*
+            用于计算序列号的轮次
+            indexShift = log2(bufferSize){32 -> 2^5}
+            seq = 0~31, seq >>> 5 = 0 - 第一轮
+            seq = 32~63, seq >>> 5 = 1 - 第二轮
+            ....
+        */
         indexShift = Util.log2(bufferSize);
     }
 

@@ -481,10 +481,15 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
      * @see com.lmax.disruptor.EventSink#publishEvent(com.lmax.disruptor.EventTranslatorOneArg, Object)
      * com.lmax.disruptor.EventSink#publishEvent(com.lmax.disruptor.EventTranslatorOneArg, A)
      */
+    // 生产数据
     @Override
     public <A> void publishEvent(final EventTranslatorOneArg<E, A> translator, final A arg0)
     {
+        /*
+           申请下一个可以写入的序列号
+        */
         final long sequence = sequencer.next();
+        // 发布数据
         translateAndPublish(translator, sequence, arg0);
     }
 
@@ -965,11 +970,12 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
     {
         try
         {
+            // 调用用户传入的translator来真正的发布数据,这里会到用户编写的方法中去
             translator.translateTo(get(sequence), sequence, arg0);
         }
         finally
         {
-            sequencer.publish(sequence);
+            sequencer.publish(sequence); // 在数据存放到ringBuffer中后,还需要更新生产者的序列号以及唤醒阻塞的消费者(如果有)
         }
     }
 

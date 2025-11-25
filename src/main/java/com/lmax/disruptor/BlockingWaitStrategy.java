@@ -25,23 +25,49 @@ public final class BlockingWaitStrategy implements WaitStrategy
 {
     private final Object mutex = new Object();
 
+    /**
+     *
+     * @param sequence         消费者想要消费的起始序列号
+     * @param cursorSequence   生产者已经发布的序列号
+     *
+     * @param dependentSequence 消费者依赖的序列号
+     * @param barrier           消费者的barrier
+     * @return
+     * @throws AlertException
+     * @throws InterruptedException
+     */
     @Override
     public long waitFor(final long sequence, final Sequence cursorSequence, final Sequence dependentSequence, final SequenceBarrier barrier)
         throws AlertException, InterruptedException
     {
+        /*
+            消费者想要消费某个序列号(sequence)，通过前面的学习,应该是要满足两个条件的
+             - 生产者已经发布的序列号应该要大于等于sequence -> cursorSequence.get() >= sequence
+             - 消费者依赖的上游消费者已经消费过的序列号应该要大于等于sequence -> dependentSequence.get() >= sequence
+             但是在 BusySpinWaitStrategy 中 只判断了 dependentSequence.get() >= sequence,这是为什么呢？
+        */
         long availableSequence;
+        /*
+            1. 生产者已经发布的序列号 < 当前消费者想要消费的序列号
+              那么说明当前消费者还需要等待生产者发布数据
+        */
         if (cursorSequence.get() < sequence)
         {
             synchronized (mutex)
             {
-                while (cursorSequence.get() < sequence)
+                while (cursorSequence.get() < sequence) // 需要使用while循环,直到条件满足(生产者已经发布了对应的序列号了)
                 {
                     barrier.checkAlert();
-                    mutex.wait();
+                    mutex.wait(); // 阻塞
                 }
             }
-        }
-
+        } // end if
+        /*
+            2. 当前消费者依赖的上游消费者(这里应该是getMin())已经消费过的序列号 < 当前消费者想要消费的序列号
+                     - 这里.get(),最终调用的就是getMinimumSequence(sequences){sequences是一个数组,保存了当前消费者所依赖的上游消费者的序列号}
+                        - 如何找到数组中最小的数呢？有什么好的算法吗？
+               也即上游消费者还没有处理到目标序列号,那么当前消费者进行到自旋等待
+        */
         while ((availableSequence = dependentSequence.get()) < sequence)
         {
             barrier.checkAlert();

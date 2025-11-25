@@ -65,6 +65,9 @@ class EventProcessorInfo implements ConsumerInfo
     @Override
     public void start(final ThreadFactory threadFactory)
     {
+        // 创建线程对象,并且将eventprocessor作为线程的runnable(后续的核心逻辑则都在eventprocessor#run()方法中了)
+        // eventprocessor通常是 BatchedEventProcessor
+        // 下面就去看下 BatchEventProcessor.run()方法的实现
         final Thread thread = threadFactory.newThread(eventprocessor);
         if (null == thread)
         {

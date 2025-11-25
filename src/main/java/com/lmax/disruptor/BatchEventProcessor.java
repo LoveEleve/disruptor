@@ -117,20 +117,24 @@ public final class BatchEventProcessor<T>
      *
      * @throws IllegalStateException if this object instance is already running in a thread
      */
+    // core logic
     @Override
     public void run()
     {
+        // cas的将当前处理器的状态从IDLE转换为RUNNING,并且返回old status
         int witnessValue = running.compareAndExchange(IDLE, RUNNING);
-        if (witnessValue == IDLE) // Successful CAS
+        if (witnessValue == IDLE) // Successful CAS this is normal logic ‼️
         {
+            // 清楚SequenceBarrier中的中断标记，确保消费者可以正常的等待新事件，不会因为之前残留的中断信号而立即退出
+            // 如果不清除,那么消费者在waitFor()时会立即抛出AlertException异常
             sequenceBarrier.clearAlert();
-
+            // call back onStart()
             notifyStart();
             try
             {
                 if (running.get() == RUNNING)
                 {
-                    processEvents();
+                    processEvents(); // todo
                 }
             }
             finally
@@ -139,48 +143,84 @@ public final class BatchEventProcessor<T>
                 running.set(IDLE);
             }
         }
-        else
+        else // old status != IDLE
         {
-            if (witnessValue == RUNNING)
+            if (witnessValue == RUNNING) // old status == RUNNING，那么代表线程已经在运行中了，抛出异常
             {
                 throw new IllegalStateException("Thread is already running");
             }
-            else
+            else // status != idle & != running，代表处理器在被启动前就已经被停止了
             {
-                earlyExit();
+                earlyExit();  // call back
             }
         }
     }
-
+    /*
+        真正处理事件的逻辑 ‼️‼️
+        注意这里是在消费者中(也即是在EventProcessor中)
+    */
     private void processEvents()
     {
         T event = null;
+        // 这里的sequence代表的是消费者的已经处理的最大序列号(初始值为-1)
+        // 在这里获取下一个序列号(也就是待处理的序列号) - 1
         long nextSequence = sequence.get() + 1L;
 
-        while (true)
+        while (true) // 死循环
         {
-            final long startOfBatchSequence = nextSequence;
+            final long startOfBatchSequence = nextSequence; // 记录当前批次的起始序列号(因为消费者可以一次性处理多个事件,而非单个)
             try
             {
                 try
                 {
+                    /*
+                        前面说过,sequenceBarrier是协调消费者与生产者(上游消费者)之间的同步关系
+                        在这里消费者想要去消费事件，就必须知道此时nextSequence对应的事件是否被正常消费，
+                        这就是由sequenceBarrier来完成的(waitFor(s))
+                        如果不能消费nextSequence对应的事件，那么就需要阻塞等待
+                        否则返回可消费的序列号
+                            - 在这里有个问题：nextSequence == availableSequence 吗?
+                            - 答案是不一定的,但是 availableSequence >= nextSequence 是一定成立的
+                                - 比如生产者已经生产到了150,而消费者请求消费100，那么这里返回的就是150
+                    */
                     final long availableSequence = sequenceBarrier.waitFor(nextSequence);
+                    /*
+                        计算批次结束位置
+                        单个消费者一次性能够消费的事件是有限制的(通过batchLimitOffset来控制 - 假设为10)
+                        而此次消费者想要消费的序列号为50，那么此批次的对应的事件范围为[50,60]
+                           - nextSequence + batchLimitOffset
+                           - availableSequence ：下一个可用的序列号
+                           最终当前批次为两者最小值
+                    */
                     final long endOfBatchSequence = min(nextSequence + batchLimitOffset, availableSequence);
-
+                    // 批次开始通知 - 首先是生命周期回调
                     if (nextSequence <= endOfBatchSequence)
                     {
+                        /*
+                            这里传入的两个参数:
+                             - endOfBatchSequence - nextSequence + 1 : 本批次将处理的事件数量
+                             - availableSequence - nextSequence + 1 : 当前总共可用的事件数量
+                             onBatchStart(10,50) - 本批次将处理10个事件,当前总共可用50个事件
+                        */
                         eventHandler.onBatchStart(endOfBatchSequence - nextSequence + 1, availableSequence - nextSequence + 1);
                     }
-
+                    // 在一个while循环里,依次处理当前批次中的所有事件
                     while (nextSequence <= endOfBatchSequence)
                     {
+                        // 获取事件(这个就是用户创建的数据)
                         event = dataProvider.get(nextSequence);
+                        /*
+                            回调消费者的onEvent()方法(也是用户提供的)
+                            - 这里的参数:
+                                - event - 事件对象
+                                - nextSequence - 序列号
+                                - endOfBatchSequence == nextSequence - 是否是当前批次中的最后一个事件
+                        */
                         eventHandler.onEvent(event, nextSequence, nextSequence == endOfBatchSequence);
-                        nextSequence++;
+                        nextSequence++; // 下一个消费的序列号
                     }
-
-                    retriesAttempted = 0;
-
+                    retriesAttempted = 0; // 重置重试计数器
+                    // 更新当前消费者的已处理的最大序列号
                     sequence.set(endOfBatchSequence);
                 }
                 catch (final RewindableException e)

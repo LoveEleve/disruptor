@@ -58,6 +58,10 @@ public final class Util
      * @return the smaller of minimum sequence value found in {@code sequences} and {@code minimum};
      * {@code minimum} if {@code sequences} is empty
      */
+    /*
+        sequences:消费者序列号数组
+        minimum:初始默认最小值,通常是生产者传入的当前位置(也就是生产者想要put的下一个位置)
+    */
     public static long getMinimumSequence(final Sequence[] sequences, final long minimum)
     {
         long minimumSequence = minimum;

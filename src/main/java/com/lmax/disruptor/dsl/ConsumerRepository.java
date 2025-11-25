@@ -71,6 +71,9 @@ class ConsumerRepository
 
     public void startAll(final ThreadFactory threadFactory)
     {
+        // consumerInfos中直接存储的就是ConsumerInfo对象(也就是消费者对象)
+        // 在这里依次处理每一个ConsumerInfo对象,并且调用start()方法
+        // 下面就继续看下EventProcessorInfo.start()
         consumerInfos.forEach(c -> c.start(threadFactory));
     }
 
