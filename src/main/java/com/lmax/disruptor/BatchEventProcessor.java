@@ -155,6 +155,7 @@ public final class BatchEventProcessor<T>
             }
         }
     }
+
     /*
         真正处理事件的逻辑 ‼️‼️
         注意这里是在消费者中(也即是在EventProcessor中)
@@ -181,7 +182,9 @@ public final class BatchEventProcessor<T>
                         否则返回可消费的序列号
                             - 在这里有个问题：nextSequence == availableSequence 吗?
                             - 答案是不一定的,但是 availableSequence >= nextSequence 是一定成立的
-                                - 比如生产者已经生产到了150,而消费者请求消费100，那么这里返回的就是150
+                                - 比如生产者已经生产到了150,而消费者请求消费100，那么这里返回的就是150 ??
+                                这里也不一定,因为当存在消费者链时 ，availableSequence 可能小于 nextSequence
+                                一旦是这种情况,那么下面消费者就不会消费
                     */
                     final long availableSequence = sequenceBarrier.waitFor(nextSequence);
                     /*

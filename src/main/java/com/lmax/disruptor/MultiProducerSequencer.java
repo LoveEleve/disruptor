@@ -132,31 +132,58 @@ public final class MultiProducerSequencer extends AbstractSequencer
     /**
      * @see Sequencer#next(int)
      */
+    // 这里是 MultiProducerSequencer 的next()方法,和 SingleProducerSequencer 的next()有很大区别
     @Override
     public long next(final int n)
     {
+        // 边界处理
         if (n < 1 || n > bufferSize)
         {
             throw new IllegalArgumentException("n must be > 0 and < bufferSize");
         }
-
+        // 原子性的获取当前生产者(注意,在这里虽然是多个生产者(用户),但是这里的MultiProducerSequencer是所有生产者共享的)
+        // 多个生产者调用onData()发布数据时,首先会调用next()来获取可以使用的序列号,所以这里的并发是开发者的多个producer 可能会同时调用next()方法来获取下一个能操作的序列号
+        // 这里必须保证线程安全,也即多个producer获取到的sequence必须是不同的,否则会出现数据覆盖
+        // 所以在这里每个生产者都会获取到属于自己的sequence(这里的current是old cursor，但是此时cursor 已经增加了,别的生产者获取的就是new cursor)
         long current = cursor.getAndAdd(n);
+        // 计算本次申请的最后一个序列号
+        /*
+            这里我有个问题,那就是next(n),也即生产者可以一次性获取多个序列号吗？
+            答案是可以的,开发者创建的(producer)是持有ringBuffer的,所以可以主动调用next(n)来预分配序列号
+            比如此时RingBuffer中对消费者可见的cursor.seq = 10
+            那么这里外部生产者调用next(10) - getAndAdd(10)
+            在这里获取的就是10，但是此时的cursor已经变为20了,也就是说[10 - 20]这个区间的位置都是由当前生产者来发布事件的
+            其他生产者也是同理
 
+            - 所以这样就能够理解了，nextSequence是当前生产者此次操作的(其实是生产者当前处理批次的最后一个序列号,感觉叫做lastBatchSequence更好理解一点)
+        */
         long nextSequence = current + n;
+        // 计算回绕点(指向最后一个)
         long wrapPoint = nextSequence - bufferSize;
+        // 获取缓存的gatingSequence(消费者中消费最慢的消费进度 - 可能已经过期)
         long cachedGatingSequence = gatingSequenceCache.get();
-
+        // 这里用最后一个判断是没问题的,不能用起始序列号(起始序列号 - bufferSize)来判断是否大于cachedGatingSequence,
+        // 如果满足条件,那么说明当前生产者可能已经会覆盖数据(消费者还没有消费)
         if (wrapPoint > cachedGatingSequence || cachedGatingSequence > current)
         {
             long gatingSequence;
+            /*
+                gatingSequence = Util.getMinimumSequence(gatingSequences, current))
+                    - gatingSequences：所有的消费者序列
+                    - current：目前最旧的生产者序列号
+                我感觉这里存在一个性能问题,这里需要注意：wrapPoint = nextSequence - bufferSize; 这里指向的是最后一个不能被覆盖的序列号
+                其实当前生产者等待的序列号范围是[current - bufferSize , wrapPoint = nextSequence - bufferSize]
+                但是在这里用的wrapPoint > gatingSequence,那么当消费者消费了某些数据后,在这里生产者依旧要等待
+                直到消费者消费到了当前生产者等待的最后一个序列号
+            */
             while (wrapPoint > (gatingSequence = Util.getMinimumSequence(gatingSequences, current)))
             {
                 LockSupport.parkNanos(1L); // TODO, should we spin based on the wait strategy?
             }
-
+            // 走到这里说明,生产者已经消费到了wrapPoint了,那么缓存gatingSequence
             gatingSequenceCache.set(gatingSequence);
         }
-
+        // 返回nextSequence
         return nextSequence;
     }
 
@@ -253,6 +280,10 @@ public final class MultiProducerSequencer extends AbstractSequencer
      */
     private void setAvailable(final long sequence)
     {
+        /*
+            1.calculateIndex(sequence):计算在数组中的索引位置
+            2.calculateAvailabilityFlag(sequence):计算在availableBuffer数组中的标记值(也即当前事件的轮次)
+        */
         setAvailableBufferValue(calculateIndex(sequence), calculateAvailabilityFlag(sequence));
     }
 
@@ -267,22 +298,36 @@ public final class MultiProducerSequencer extends AbstractSequencer
     @Override
     public boolean isAvailable(final long sequence)
     {
+        // 获取序列号所在ringBuffer中的下标
         int index = calculateIndex(sequence);
+        // 获取当前序列号所对应的轮次
         int flag = calculateAvailabilityFlag(sequence);
+        // 当前序列号的轮次 是否和 availableBuffer[index]中的下标一致
         return (int) AVAILABLE_ARRAY.getAcquire(availableBuffer, index) == flag;
     }
 
+    /*
+        lowerBound: 消费者想要消费的序列号
+        availableSequence:真正可以消费的序列号
+        availableSequence >= lowerBound
+     */
     @Override
     public long getHighestPublishedSequence(final long lowerBound, final long availableSequence)
     {
+        // 从 lowerBound开始,逐个检查每个序列号是否可以真正消费
         for (long sequence = lowerBound; sequence <= availableSequence; sequence++)
         {
+            /*
+                focus‼️ 需要判断每个序列号是否可以真正的消费
+                 - true:可以消费
+                 - false:不可以消费,那么返回前一个序列号(当前消费者应该还是不会消费,依旧重新调用waitFor())
+            */
             if (!isAvailable(sequence))
             {
                 return sequence - 1;
             }
         }
-
+        // 否则,可以消费
         return availableSequence;
     }
 
@@ -299,11 +344,6 @@ public final class MultiProducerSequencer extends AbstractSequencer
     @Override
     public String toString()
     {
-        return "MultiProducerSequencer{" +
-                "bufferSize=" + bufferSize +
-                ", waitStrategy=" + waitStrategy +
-                ", cursor=" + cursor +
-                ", gatingSequences=" + Arrays.toString(gatingSequences) +
-                '}';
+        return "MultiProducerSequencer{" + "bufferSize=" + bufferSize + ", waitStrategy=" + waitStrategy + ", cursor=" + cursor + ", gatingSequences=" + Arrays.toString(gatingSequences) + '}';
     }
 }
