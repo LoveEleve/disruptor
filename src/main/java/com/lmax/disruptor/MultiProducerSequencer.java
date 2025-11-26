@@ -175,6 +175,8 @@ public final class MultiProducerSequencer extends AbstractSequencer
                 其实当前生产者等待的序列号范围是[current - bufferSize , wrapPoint = nextSequence - bufferSize]
                 但是在这里用的wrapPoint > gatingSequence,那么当消费者消费了某些数据后,在这里生产者依旧要等待
                 直到消费者消费到了当前生产者等待的最后一个序列号
+
+                ‼️‼️‼️ 这里可以写到简历里,说自己做过性能优化，流日志中的ringBuffer
             */
             while (wrapPoint > (gatingSequence = Util.getMinimumSequence(gatingSequences, current)))
             {
