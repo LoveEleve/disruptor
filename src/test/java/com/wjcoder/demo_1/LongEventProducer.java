@@ -1,5 +1,6 @@
 package com.wjcoder.demo_1;
 
+import com.lmax.disruptor.EventTranslatorOneArg;
 import com.lmax.disruptor.RingBuffer;
 
 /**
@@ -16,17 +17,17 @@ public class LongEventProducer
         this.ringBuffer = ringBuffer;
     }
 
+    private static final EventTranslatorOneArg<LongEvent, Long> TRANSLATOR = new EventTranslatorOneArg<LongEvent, Long>()
+    {
+        @Override
+        public void translateTo(final LongEvent event, final long sequence, final Long arg0)
+        {
+            event.set(arg0);
+        }
+    };
+
     public void onData(long value)
     {
-        long sequence = ringBuffer.next();  // 获取下一个可用的序列号
-        try
-        {
-            LongEvent event = ringBuffer.get(sequence);  // 获取事件对象
-            event.set(value);  // 填充数据
-        }
-        finally
-        {
-            ringBuffer.publish(sequence);  // 发布事件
-        }
+        ringBuffer.publishEvent(TRANSLATOR, value);
     }
 }

@@ -14,4 +14,10 @@ public class LongEventHandler implements EventHandler<LongEvent>
     {
         System.out.println("Event: " + event.get() + ", sequence: " + sequence + ", endOfBatch: " + endOfBatch);
     }
+
+    @Override
+    public void onBatchStart(final long batchSize, final long queueDepth)
+    {
+        EventHandler.super.onBatchStart(batchSize, queueDepth);
+    }
 }

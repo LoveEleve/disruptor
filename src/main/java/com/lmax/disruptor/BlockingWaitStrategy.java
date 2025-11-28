@@ -17,7 +17,7 @@ package com.lmax.disruptor;
 
 /**
  * Blocking strategy that uses a lock and condition variable for {@link EventProcessor}s waiting on a barrier.
-
+ *
  *
  * <p>This strategy can be used when throughput and low-latency are not as important as CPU resource.
  */
@@ -26,10 +26,8 @@ public final class BlockingWaitStrategy implements WaitStrategy
     private final Object mutex = new Object();
 
     /**
-     *
-     * @param sequence         消费者想要消费的起始序列号
-     * @param cursorSequence   生产者已经发布的序列号
-     *
+     * @param sequence          消费者想要消费的起始序列号
+     * @param cursorSequence    生产者已经发布的序列号
      * @param dependentSequence 消费者依赖的序列号
      * @param barrier           消费者的barrier
      * @return
@@ -38,7 +36,7 @@ public final class BlockingWaitStrategy implements WaitStrategy
      */
     @Override
     public long waitFor(final long sequence, final Sequence cursorSequence, final Sequence dependentSequence, final SequenceBarrier barrier)
-        throws AlertException, InterruptedException
+            throws AlertException, InterruptedException
     {
         /*
             消费者想要消费某个序列号(sequence)，通过前面的学习,应该是要满足两个条件的
@@ -53,6 +51,12 @@ public final class BlockingWaitStrategy implements WaitStrategy
         */
         if (cursorSequence.get() < sequence)
         {
+            /*
+                这里为什么要加锁呢？多个消费者存在竞争关系吗？
+                 - 没有,在这里加锁,是为了保证BlockingWaitStrategy的语言
+                   因为是阻塞等待,那么就必须能够被正常唤醒,在这里使用ReentrantLock + Condition也是可以的
+                   如果去看其他类型的WaitStrategy,会看到不同的实现会有不同的做法
+            */
             synchronized (mutex)
             {
                 while (cursorSequence.get() < sequence) // 需要使用while循环,直到条件满足(生产者已经发布了对应的序列号了)
@@ -90,7 +94,7 @@ public final class BlockingWaitStrategy implements WaitStrategy
     public String toString()
     {
         return "BlockingWaitStrategy{" +
-            "mutex=" + mutex +
-            '}';
+                "mutex=" + mutex +
+                '}';
     }
 }

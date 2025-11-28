@@ -176,7 +176,13 @@ public final class MultiProducerSequencer extends AbstractSequencer
                 但是在这里用的wrapPoint > gatingSequence,那么当消费者消费了某些数据后,在这里生产者依旧要等待
                 直到消费者消费到了当前生产者等待的最后一个序列号
 
-                ‼️‼️‼️ 这里可以写到简历里,说自己做过性能优化，流日志中的ringBuffer
+                ‼️‼️‼️ 性能优化
+                ‼️‼️‼️ 也不太好优化啊...
+
+                但是这里又不太好优化,其实这里的做法是符合next(long n )语以的,
+                所以这里的next(n)就是期待生产者一次获取多个序列号,并且可以一次性处理多个序列号
+                也即,这里返回的就是最后一个序列号,也即需要等待最慢的消费者来消费了最后一个序列号后
+                当前生产者的next才会返回
             */
             while (wrapPoint > (gatingSequence = Util.getMinimumSequence(gatingSequences, current)))
             {
